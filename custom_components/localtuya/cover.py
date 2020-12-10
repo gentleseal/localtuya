@@ -20,6 +20,7 @@ from .const import (
     CONF_COMMANDS_SET,
     CONF_CURRENT_POSITION_DP,
     CONF_POSITION_INVERTED,
+    CONF_IMPLY_STOP_FROM_POSITION,
     CONF_POSITIONING_MODE,
     CONF_SET_POSITION_DP,
     CONF_SPAN_TIME,
@@ -52,6 +53,7 @@ def flow_schema(dps):
         vol.Optional(CONF_CURRENT_POSITION_DP): vol.In(dps),
         vol.Optional(CONF_SET_POSITION_DP): vol.In(dps),
         vol.Optional(CONF_POSITION_INVERTED, default=False): bool,
+        vol.Optional(CONF_IMPLY_STOP_FROM_POSITION, default=False): bool,
         vol.Optional(CONF_SPAN_TIME, default=DEFAULT_SPAN_TIME): vol.All(
             vol.Coerce(float), vol.Range(min=1.0, max=300.0)
         ),
@@ -89,15 +91,29 @@ class LocaltuyaCover(LocalTuyaEntity, CoverEntity):
         """Return current cover position in percent."""
         return self._current_cover_position
 
+    def _check_imply_stop_from_position(self):
+        """If implying stop, assume cover is stopped when it reached the respective end"""
+        if self._config[CONF_IMPLY_STOP_FROM_POSITION]:
+            if (
+                self._state == self._close_cmd 
+                and self._current_cover_position == 0
+            ) or (
+                self._state == self._open_cmd
+                and self._current_cover_position == 100 
+            ):
+                self._state = self._stop_cmd
+    
     @property
     def is_opening(self):
         """Return if cover is opening."""
+        self._check_imply_stop_from_position()
         state = self._state
         return state == self._open_cmd
 
     @property
     def is_closing(self):
         """Return if cover is closing."""
+        self._check_imply_stop_from_position()
         state = self._state
         return state == self._close_cmd
 
